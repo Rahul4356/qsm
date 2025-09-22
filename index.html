@@ -1,0 +1,2246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QMS - Quantum Messaging System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/idb-keyval@6/dist/umd.js"></script>
+    <style>
+        /* Message Bubble Components CSS */
+        :root{
+          --chat-bg: #f6f7fb;
+          --bubble-incoming: #ffffff;
+          --bubble-outgoing: #0b93f6;
+          --bubble-outgoing-text: #ffffff;
+          --text-color: #111827;
+          --muted-color: #6b7280;
+          --avatar-size: 40px;
+          --bubble-radius: 14px;
+          --max-width: 72ch;
+          --gap: 12px;
+          --shadow: 0 4px 10px rgba(17,24,39,0.06);
+        }
+
+        .chat{
+          display:flex;
+          flex-direction:column;
+          gap:16px;
+          padding:16px;
+          background:var(--chat-bg);
+        }
+
+        .message{
+          display:flex;
+          gap:var(--gap);
+          align-items:flex-end;
+          max-width:100%;
+        }
+
+        .message:focus{
+          outline: 3px solid rgba(11,147,246,0.15);
+          outline-offset: 2px;
+          border-radius:8px;
+        }
+
+        /* Avatar */
+        .message__avatar{
+          width:var(--avatar-size);
+          height:var(--avatar-size);
+          border-radius:50%;
+          object-fit:cover;
+          flex:0 0 var(--avatar-size);
+          box-shadow:var(--shadow);
+        }
+
+        .message__content{
+          display:flex;
+          flex-direction:column;
+          gap:6px;
+          max-width: calc(var(--max-width));
+        }
+
+        .message__bubble{
+          padding:10px 14px;
+          border-radius:var(--bubble-radius);
+          font-size:0.97rem;
+          line-height:1.35;
+          box-shadow: var(--shadow);
+          word-wrap:break-word;
+          white-space:pre-wrap;
+          max-width:100%;
+        }
+
+        .message__meta{
+          display:flex;
+          align-items:center;
+          gap:8px;
+          font-size:0.78rem;
+          color:var(--muted-color);
+        }
+
+        .message__time{
+          display:inline-block;
+        }
+
+        .message__react{
+          background:transparent;
+          border:0;
+          cursor:pointer;
+          padding:4px;
+          border-radius:6px;
+          font-size:1rem;
+        }
+        .message__react:focus{ outline:2px solid rgba(0,0,0,0.08) }
+
+        /* Incoming vs Outgoing alignment */
+        .message--incoming{
+          align-self:flex-start;
+        }
+        .message--incoming .message__bubble{
+          background:var(--bubble-incoming);
+          color:var(--text-color);
+          border-top-left-radius:6px;
+          border-top-right-radius:var(--bubble-radius);
+        }
+
+        .message--outgoing{
+          align-self:flex-end;
+          flex-direction:row-reverse;
+        }
+        .message--outgoing .message__bubble{
+          background:var(--bubble-outgoing);
+          color:var(--bubble-outgoing-text);
+          border-top-right-radius:6px;
+          border-top-left-radius:var(--bubble-radius);
+        }
+
+        /* Small screens: avatars can be hidden for compactness */
+        @media (max-width:420px){
+          .message__avatar{ display:none }
+          .message{ gap:8px }
+          .message__bubble{ padding:10px; font-size:0.95rem }
+        }
+
+        /* Support dark mode */
+        @media (prefers-color-scheme: dark){
+          :root{
+            --chat-bg: #0b1020;
+            --bubble-incoming: #0f1724;
+            --bubble-outgoing: #136ef7;
+            --bubble-outgoing-text: #fff;
+            --text-color: #e6eef8;
+            --muted-color: #9aa6b2;
+            --shadow: 0 6px 18px rgba(2,6,23,0.6);
+          }
+        }
+
+        /* Respect reduced motion */
+        @media (prefers-reduced-motion: reduce){
+          .message__bubble{ transition:none !important }
+        }
+
+        /* Optional utility: small inline code style inside bubbles */
+        .message__bubble code{
+          background:rgba(0,0,0,0.04);
+          padding:0.15em 0.4em;
+          border-radius:6px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Segoe UI Mono', monospace;
+          font-size:0.92em;
+        }
+
+        /* Gradients and Animations */
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @keyframes fadeInUp {
+            from { 
+                opacity: 0; 
+                transform: translateY(30px) scale(0.95);
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        .message-enter {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .spin-animation {
+            animation: spin 1s linear infinite;
+        }
+        
+        .auth-container-enter {
+            animation: fadeInUp 0.6s ease-out;
+        }
+        
+        /* Enhanced Input Styles */
+        input:focus {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Button Hover Effects */
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+        
+        /* Form Validation Visual Feedback */
+        input:valid {
+            border-color: #10b981;
+        }
+        
+        input:invalid:not(:placeholder-shown) {
+            border-color: #ef4444;
+        }
+        
+        /* Loading States */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.5rem;
+        }
+        
+        /* Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f3f5;
+            border-radius: 3px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        /* Message Bubbles */
+        .message-bubble {
+            display: inline-block;
+            max-width: 70%;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+        
+        .message.mine {
+            text-align: right;
+        }
+        
+        .message.theirs {
+            text-align: left;
+        }
+        
+        /* Modal Backdrop */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        
+        /* Toast Container */
+        #toastContainer {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 400px;
+        }
+        
+        .toast {
+            min-width: 250px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease-out;
+            transition: opacity 0.3s ease;
+        }
+        
+        .toast-info {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .toast-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .toast-warning {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .toast-error {
+            background: #ef4444;
+            color: white;
+        }
+        
+        /* Offline banner */
+        .offline-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #fbbf24;
+            color: #78350f;
+            padding: 8px;
+            text-align: center;
+            z-index: 90;
+            display: none;
+        }
+        
+        /* Message status */
+        .message-status-queued {
+            background: #fbbf24;
+            color: #78350f;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            margin-left: 4px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -320px;
+                transition: left 0.3s ease;
+                z-index: 40;
+                height: 100%;
+            }
+            
+            .sidebar.open {
+                left: 0;
+            }
+            
+            .sidebar-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 39;
+                display: none;
+            }
+            
+            .sidebar-overlay.show {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Offline Banner -->
+    <div id="offlineBanner" class="offline-banner" role="alert" aria-live="assertive">
+        You're offline — messages will be queued and sent when connection is restored
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" role="region" aria-live="polite" aria-label="Notifications"></div>
+
+    <!-- Login/Register Container -->
+    <div id="authContainer" class="min-h-screen gradient-bg flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md transform transition-all duration-300 auth-container-enter">
+            <div class="text-center mb-10">
+                <div class="inline-flex items-center justify-center w-20 h-20 gradient-bg rounded-full mb-6 shadow-lg">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                </div>
+                <h1 class="text-3xl font-bold text-gray-900 mb-3">Quantum Messaging System</h1>
+                <p class="text-gray-600 text-lg">Post-quantum secure communication</p>
+            </div>
+            
+            <!-- Login Form -->
+            <div id="loginForm">
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold text-gray-900 text-center">Welcome Back</h2>
+                    <p class="text-gray-600 text-center mt-1">Sign in to your secure account</p>
+                </div>
+                
+                <form onsubmit="event.preventDefault(); login();">
+                    <div class="space-y-6">
+                        <div>
+                            <label for="username" class="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                    </svg>
+                                </div>
+                                <input type="text" id="username" name="username" required 
+                                       class="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                                       placeholder="Enter your username"
+                                       aria-required="true" autocomplete="username">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="password" class="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                    </svg>
+                                </div>
+                                <input type="password" id="password" name="password" required
+                                       class="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                                       placeholder="Enter your password"
+                                       aria-required="true" autocomplete="current-password">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full py-3 gradient-bg text-white font-semibold rounded-lg hover:opacity-90 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                            <span class="flex items-center justify-center gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7c2 0 3 1 3 3v1"></path>
+                                </svg>
+                                Sign In Securely
+                            </span>
+                        </button>
+                    </div>
+                </form>
+                <div class="text-center mt-6 pt-6 border-t border-gray-100">
+                    <p class="text-gray-600 mb-2">Don't have an account?</p>
+                    <button onclick="toggleAuthMode()" class="text-indigo-600 hover:text-indigo-700 text-sm font-semibold hover:underline transition-colors">
+                        Create New Account →
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Register Form -->
+            <div id="registerForm" style="display:none;">
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold text-gray-900 text-center">Create Account</h2>
+                    <p class="text-gray-600 text-center mt-1">Join the quantum-secure network</p>
+                </div>
+                
+                <form onsubmit="event.preventDefault(); register();">
+                    <div class="space-y-6">
+                        <div>
+                            <label for="regUsername" class="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                    </svg>
+                                </div>
+                                <input type="text" id="regUsername" name="regUsername" pattern="[a-zA-Z0-9_-]{3,50}" required
+                                       class="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                                       placeholder="alice"
+                                       aria-required="true" aria-describedby="username-help">
+                            </div>
+                            <p id="username-help" class="text-xs text-gray-500 mt-2 ml-1">
+                                <span class="inline-flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    3-50 characters: letters, numbers, underscore, hyphen
+                                </span>
+                            </p>
+                        </div>
+                        <div>
+                            <label for="regEmail" class="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"></path>
+                                    </svg>
+                                </div>
+                                <input type="email" id="regEmail" name="regEmail" required
+                                       class="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                                       placeholder="alice@example.com"
+                                       aria-required="true" autocomplete="email">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="regPassword" class="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                    </svg>
+                                </div>
+                                <input type="password" id="regPassword" name="regPassword" minlength="6" required
+                                       class="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                                       placeholder="Choose a secure password"
+                                       aria-required="true" aria-describedby="password-help" autocomplete="new-password">
+                            </div>
+                            <p id="password-help" class="text-xs text-gray-500 mt-2 ml-1">
+                                <span class="inline-flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Minimum 6 characters required
+                                </span>
+                            </p>
+                        </div>
+                        
+                        <!-- Terms and Quantum Security Info -->
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="flex items-start gap-2">
+                                <svg class="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                                </svg>
+                                <div class="text-sm text-blue-800">
+                                    <p class="font-semibold mb-1">Quantum-Safe Security</p>
+                                    <p>Your account will be protected with ML-KEM-768 encryption and Falcon-512 signatures, designed to resist quantum computer attacks.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="w-full py-3 gradient-bg text-white font-semibold rounded-lg hover:opacity-90 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                            <span class="flex items-center justify-center gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+                                </svg>
+                                Create Secure Account
+                            </span>
+                        </button>
+                    </div>
+                </form>
+                <div class="text-center mt-6 pt-6 border-t border-gray-100">
+                    <p class="text-gray-600 mb-2">Already have an account?</p>
+                    <button onclick="toggleAuthMode()" class="text-indigo-600 hover:text-indigo-700 text-sm font-semibold hover:underline transition-colors">
+                        ← Back to Sign In
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="mainApp" style="display:none;" class="flex h-screen bg-gray-50">
+        <!-- Mobile Menu Button -->
+        <button id="mobileMenuBtn" class="md:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-lg" aria-label="Menu">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+        </button>
+
+        <!-- Sidebar Overlay (mobile) -->
+        <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar w-80 bg-white border-r border-gray-200 flex flex-col" role="navigation">
+            <!-- User Profile -->
+            <div class="p-6 gradient-bg text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xl font-semibold" id="currentUsername">Username</h2>
+                        <p class="text-sm opacity-90 mt-1">Quantum-Safe Mode</p>
+                    </div>
+                    <button onclick="logout()" class="p-2 hover:bg-white/20 rounded-lg transition-colors" aria-label="Logout" title="Logout">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pending Requests -->
+            <div id="pendingRequests" class="p-4 bg-yellow-50 border-b border-yellow-200" style="display:none;">
+                <h3 class="text-sm font-semibold text-yellow-800 mb-2">Pending Requests</h3>
+                <div id="pendingRequestsList"></div>
+            </div>
+
+            <!-- Session Info -->
+            <div id="sessionInfo" class="p-4 bg-green-50 border-b border-green-200" style="display:none;">
+                <div class="text-sm text-green-800">
+                    <div class="font-semibold mb-2">Active Session</div>
+                    <div class="text-xs space-y-1 font-mono">
+                        <div>ID: <span id="sessionId"></span></div>
+                        <div>Messages: <span id="messageCount">0</span></div>
+                        <div>KEM: ML-KEM-768</div>
+                        <div>Signature: Falcon-512</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users List -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar">
+                <div class="p-4">
+                    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Available Users</h3>
+                    <div id="usersList"></div>
+                </div>
+            </div>
+
+            <!-- Settings Footer -->
+            <div class="p-4 border-t border-gray-200 bg-gray-50">
+                <div class="space-y-3 text-xs">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="desktopNotifToggle" class="rounded">
+                        <span>Enable desktop notifications</span>
+                    </label>
+                    <div class="text-gray-500">
+                        <div>🟢 Online | 🟡 Busy | ⚫ Offline</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Chat Area -->
+        <main class="flex-1 flex flex-col">
+            <!-- Chat Header -->
+            <header id="chatHeader" class="bg-white border-b border-gray-200 px-6 py-4" style="display:none;">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white font-semibold">
+                            <span id="chatAvatar">U</span>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-900" id="chatWith">Chat</h3>
+                            <p class="text-sm text-green-600">🔒 Quantum-secured</p>
+                        </div>
+                    </div>
+                    <button onclick="terminateSession()" class="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600">
+                        End Session
+                    </button>
+                </div>
+            </header>
+
+            <!-- Typing Indicator -->
+            <div id="typingIndicator" class="px-6 py-2 bg-gray-50 text-sm text-gray-500" style="display:none;" aria-live="polite">
+                <span id="typingUser"></span> is typing...
+            </div>
+
+            <!-- Messages Area -->
+            <div id="messagesArea" class="flex-1 overflow-y-auto bg-gray-50 custom-scrollbar" role="log" aria-live="polite">
+                <div id="welcomeScreen" class="h-full flex items-center justify-center p-8">
+                    <div class="text-center">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">Welcome to QMS</h3>
+                        <p class="text-gray-600 mb-6">Select a user to start a quantum-secured session</p>
+                        <div class="grid grid-cols-2 gap-4 max-w-md mx-auto">
+                            <div class="bg-white p-4 rounded-lg border border-gray-200">
+                                <div class="text-2xl mb-2">🔐</div>
+                                <div class="font-semibold">Encrypted Messaging</div>
+                                <div class="text-xs text-gray-500">ML-KEM-768</div>
+                            </div>
+                            <div class="bg-white p-4 rounded-lg border border-gray-200">
+                                <div class="text-2xl mb-2">⚠️</div>
+                                <div class="font-semibold">Critical Information</div>
+                                <div class="text-xs text-gray-500">Falcon-512 Signed</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="messagesList" style="display:none;" class="p-0">
+                    <div id="messagesContent" class="chat min-h-96 max-h-96 overflow-y-auto"></div>
+                </div>
+            </div>
+
+            <!-- Message Bubble Template -->
+            <template id="tpl-message">
+              <div class="message" role="article">
+                <img class="message__avatar" alt="">
+                <div class="message__content">
+                  <div class="message__bubble" aria-live="polite"></div>
+                  <div class="message__meta">
+                    <time class="message__time"></time>
+                    <button class="message__react" aria-label=""></button>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Message Input -->
+            <div id="messageInputArea" class="bg-white border-t border-gray-200 p-4" style="display:none;">
+                <div class="flex gap-2 mb-3">
+                    <button id="secureBtn" onclick="setMessageType('secured')" class="flex-1 py-2 px-4 rounded-lg font-medium bg-indigo-100 text-indigo-700">
+                        🔒 Secure
+                    </button>
+                    <button id="criticalBtn" onclick="setMessageType('critical')" class="flex-1 py-2 px-4 rounded-lg font-medium bg-gray-100 text-gray-700">
+                        ⚠️ Critical (Signed)
+                    </button>
+                </div>
+                <div class="flex gap-3">
+                    <textarea id="messageInput" class="flex-1 px-4 py-3 bg-gray-100 rounded-xl resize-none" 
+                              placeholder="Type your message..." rows="1" maxlength="500"
+                              aria-label="Message" aria-describedby="charCount"></textarea>
+                    <span id="charCount" class="text-xs text-gray-400 self-center">0/500</span>
+                    <button onclick="sendMessage()" id="sendButton" class="px-6 py-3 gradient-bg text-white rounded-xl" 
+                            aria-label="Send message" title="Send message (Enter)">
+                        Send
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Connection Modal -->
+    <div id="connectionModal" class="modal-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-hidden="true">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            <h3 id="modalTitle" class="text-xl font-semibold mb-6">Establishing Quantum Session</h3>
+            <div id="progressSteps" role="status" aria-live="polite"></div>
+            <button onclick="hideConnectionModal()" class="mt-4 px-4 py-2 bg-gray-500 text-white rounded">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        'use strict';
+
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('Service Worker registered:', reg.scope))
+                    .catch(err => console.warn('Service Worker registration failed:', err));
+            });
+        }
+
+        // Check if idb-keyval loaded, provide fallback
+        if (typeof idbKeyval === 'undefined') {
+            console.error('idb-keyval not loaded! Falling back to localStorage for cache.');
+            window.idbKeyval = {
+                get: (key) => Promise.resolve(JSON.parse(localStorage.getItem(`idb_${key}`) || 'null')),
+                set: (key, val) => Promise.resolve(localStorage.setItem(`idb_${key}`, JSON.stringify(val))),
+                del: (key) => Promise.resolve(localStorage.removeItem(`idb_${key}`))
+            };
+        }
+
+        // Configuration - Auto-detect current host with SSL support
+        const currentHost = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+        const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+        const protocol = isSecure ? 'https' : 'http';
+        const wsProtocol = isSecure ? 'wss' : 'ws';
+        
+        const API_BASE = `${protocol}://${currentHost}:4000`;
+        const WS_BASE = `${wsProtocol}://${currentHost}:4000`;
+        const QUANTUM_API = `${protocol}://${currentHost}:3001`;
+        
+        // App Configuration for IST
+        const APP_CONFIG = {
+            timezone: 'Asia/Kolkata',
+            locale: 'en-IN',
+            dateFormat: {
+                short: { 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    hour12: true 
+                },
+                medium: { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    hour12: true 
+                },
+                long: { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit', 
+                    hour12: true,
+                    timeZoneName: 'short'
+                }
+            }
+        };
+
+        // Time conversion utilities
+        const timeUtils = {
+            // Convert UTC to IST (UTC+5:30)
+            toIST(utcTimeString) {
+                const date = new Date(utcTimeString);
+                return date;
+            },
+            
+            // Format time for display in IST
+            formatIST(utcTimeString, format = 'time') {
+                const date = new Date(utcTimeString);
+                
+                if (format === 'time') {
+                    // Just time (HH:MM)
+                    return date.toLocaleTimeString(APP_CONFIG.locale, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true,
+                        timeZone: APP_CONFIG.timezone
+                    });
+                } else if (format === 'datetime') {
+                    // Full date and time
+                    return date.toLocaleString(APP_CONFIG.locale, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true,
+                        timeZone: APP_CONFIG.timezone
+                    });
+                } else if (format === 'date') {
+                    // Just date
+                    return date.toLocaleDateString(APP_CONFIG.locale, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        timeZone: APP_CONFIG.timezone
+                    });
+                }
+            },
+            
+            // Get current time in IST
+            getCurrentIST() {
+                return new Date().toLocaleString(APP_CONFIG.locale, {
+                    timeZone: APP_CONFIG.timezone,
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true
+                });
+            }
+        };
+        
+        // Global State
+        let authToken = null;
+        let currentUser = null;
+        let activeSession = null;
+        let messageType = 'secured';
+        let lastMessageId = null;
+        let messageCount = 0;
+        let lastFocusedElement = null;
+        
+        // Intervals (properly managed)
+        const intervals = {
+            users: null,
+            session: null,
+            messages: null,
+            pending: null
+        };
+        
+        // Fetch with timeout helper
+        async function fetchWithTimeout(url, options = {}, timeout = 15000) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal
+                });
+                clearTimeout(id);
+                return response;
+            } catch (error) {
+                clearTimeout(id);
+                if (error.name === 'AbortError') {
+                    throw new Error('Request timeout');
+                }
+                throw error;
+            }
+        }
+        
+        // WebSocket Manager with robust reconnection
+        const wsManager = {
+            ws: null,
+            reconnectAttempts: 0,
+            maxReconnect: 10,
+            backoffBase: 500,
+            reconnectTimer: null,
+            messageQueue: [],
+            
+            connect() {
+                if (!currentUser || !authToken) return;
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
+                
+                try {
+                    this.ws = new WebSocket(`${WS_BASE}/ws/${currentUser}`);
+                    
+                    this.ws.onopen = () => {
+                        console.log('WebSocket connected');
+                        this.reconnectAttempts = 0;
+                        showToast('Connected to server', 'success');
+                        this.flushQueue();
+                    };
+                    
+                    this.ws.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            handleWebSocketMessage(data);
+                        } catch (error) {
+                            console.error('Invalid WebSocket message:', error);
+                        }
+                    };
+                    
+                    this.ws.onclose = () => {
+                        if (authToken && navigator.onLine) {
+                            this.scheduleReconnect();
+                        }
+                    };
+                    
+                    this.ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                    };
+                } catch (error) {
+                    console.error('WebSocket init failed:', error);
+                    this.scheduleReconnect();
+                }
+            },
+            
+            scheduleReconnect() {
+                if (this.reconnectTimer) return;
+                if (this.reconnectAttempts >= this.maxReconnect) {
+                    showToast('Connection lost. Please refresh the page.', 'error');
+                    return;
+                }
+                
+                const jitter = Math.random() * 300;
+                const delay = Math.min(this.backoffBase * Math.pow(2, this.reconnectAttempts) + jitter, 30000);
+                this.reconnectAttempts++;
+                
+                console.log(`Reconnecting WebSocket in ${Math.round(delay/1000)}s (attempt ${this.reconnectAttempts}/${this.maxReconnect})`);
+                
+                this.reconnectTimer = setTimeout(() => {
+                    this.reconnectTimer = null;
+                    this.connect();
+                }, delay);
+            },
+            
+            send(data) {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    try {
+                        this.ws.send(JSON.stringify(data));
+                        return true;
+                    } catch (err) {
+                        console.error('WS send failed', err);
+                        this.messageQueue.push(data);
+                        return false;
+                    }
+                }
+                // Queue message if not connected
+                this.messageQueue.push(data);
+                return false;
+            },
+            
+            flushQueue() {
+                while (this.messageQueue.length > 0 && this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    const msg = this.messageQueue.shift();
+                    try {
+                        this.ws.send(JSON.stringify(msg));
+                    } catch (error) {
+                        console.error('Failed to flush queued message:', error);
+                        this.messageQueue.unshift(msg);
+                        break;
+                    }
+                }
+            },
+            
+            close() {
+                if (this.reconnectTimer) {
+                    clearTimeout(this.reconnectTimer);
+                    this.reconnectTimer = null;
+                }
+                if (this.ws) {
+                    this.ws.onclose = null;
+                    this.ws.close();
+                    this.ws = null;
+                }
+                this.messageQueue = [];
+            }
+        };
+        
+        // Message Cache Manager with error handling
+        const cacheManager = {
+            async saveMessages(sessionId, messages) {
+                if (!sessionId) return;
+                try {
+                    await idbKeyval.set(`messages:${sessionId}`, messages);
+                } catch (error) {
+                    console.error('Cache save error:', error);
+                }
+            },
+            
+            async loadMessages(sessionId) {
+                if (!sessionId) return [];
+                try {
+                    const cached = await idbKeyval.get(`messages:${sessionId}`);
+                    return Array.isArray(cached) ? cached : [];
+                } catch (error) {
+                    console.error('Cache load error:', error);
+                    return [];
+                }
+            },
+            
+            async clearSession(sessionId) {
+                if (!sessionId) return;
+                try {
+                    await idbKeyval.del(`messages:${sessionId}`);
+                    await idbKeyval.del(`draft:${sessionId}`);
+                } catch (error) {
+                    console.error('Cache clear error:', error);
+                }
+            }
+        };
+        
+        // Queue Manager with session awareness and locking
+        const queueManager = {
+            processing: false,
+            
+            async addToQueue(message) {
+                if (!activeSession) {
+                    showToast('No active session', 'warning');
+                    return null;
+                }
+                
+                try {
+                    const queue = await idbKeyval.get('message_queue') || [];
+                    const queuedMessage = {
+                        ...message,
+                        id: `queue_${Date.now()}_${Math.random()}`,
+                        queued_at: new Date().toISOString(),
+                        session_id: activeSession.session_id,
+                        user: currentUser
+                    };
+                    queue.push(queuedMessage);
+                    await idbKeyval.set('message_queue', queue);
+                    return queuedMessage;
+                } catch (error) {
+                    console.error('Failed to add to queue:', error);
+                    return null;
+                }
+            },
+            
+            async processQueue() {
+                if (this.processing || !navigator.onLine || !activeSession) return;
+                
+                this.processing = true;
+                try {
+                    let queue = await idbKeyval.get('message_queue') || [];
+                    
+                    // Filter for current session only
+                    const sessionMessages = queue.filter(msg => 
+                        msg.session_id === activeSession.session_id && msg.user === currentUser
+                    );
+                    
+                    for (const msg of sessionMessages) {
+                        try {
+                            await sendMessageToServer(msg.content, msg.message_type);
+                            
+                            // Remove from queue after successful send
+                            queue = await idbKeyval.get('message_queue') || [];
+                            queue = queue.filter(m => m.id !== msg.id);
+                            await idbKeyval.set('message_queue', queue);
+                            
+                            // Update UI to remove queued badge
+                            const queuedElement = document.querySelector(`[data-msg-id="${msg.id}"]`);
+                            if (queuedElement) {
+                                queuedElement.remove();
+                            }
+                        } catch (error) {
+                            console.error('Failed to send queued message:', error);
+                            // Stop processing on error to avoid hammering server
+                            break;
+                        }
+                    }
+                    
+                    if (sessionMessages.length > 0) {
+                        showToast('Queued messages sent', 'success');
+                        loadMessages();
+                    }
+                } catch (error) {
+                    console.error('Queue processing error:', error);
+                } finally {
+                    this.processing = false;
+                }
+            }
+        };
+        
+        // Toast Manager
+        const toastManager = {
+            container: null,
+            
+            init() {
+                this.container = document.getElementById('toastContainer');
+            },
+            
+            show(message, type = 'info', duration = 3000) {
+                if (!this.container) return;
+                
+                const toast = document.createElement('div');
+                toast.className = `toast toast-${type}`;
+                toast.textContent = message;
+                toast.setAttribute('role', 'status');
+                toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+                
+                this.container.appendChild(toast);
+                
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    setTimeout(() => toast.remove(), 300);
+                }, duration);
+            }
+        };
+        
+        function showToast(message, type = 'info', duration = 3000) {
+            toastManager.show(message, type, duration);
+        }
+        
+        // Draft Manager with debouncing
+        const draftManager = {
+            timer: null,
+            
+            save(content) {
+                if (this.timer) clearTimeout(this.timer);
+                
+                this.timer = setTimeout(() => {
+                    const key = activeSession ? `draft:${activeSession.session_id}` : 'draft:global';
+                    localStorage.setItem(key, content);
+                    
+                    if (content.length > 0) {
+                        // Subtle indication, no toast to avoid spam
+                        console.log('Draft saved');
+                    }
+                }, 500);
+            },
+            
+            load() {
+                const key = activeSession ? `draft:${activeSession.session_id}` : 'draft:global';
+                const draft = localStorage.getItem(key);
+                
+                if (draft) {
+                    const input = document.getElementById('messageInput');
+                    input.value = draft;
+                    document.getElementById('charCount').textContent = `${draft.length}/500`;
+                }
+            },
+            
+            clear() {
+                if (activeSession) {
+                    localStorage.removeItem(`draft:${activeSession.session_id}`);
+                }
+                localStorage.removeItem('draft:global');
+            }
+        };
+        
+        // Add a status display showing current IST time
+        function showCurrentTime() {
+            const timeDisplay = document.createElement('div');
+            timeDisplay.id = 'currentTimeDisplay';
+            timeDisplay.style.cssText = 'position: fixed; bottom: 10px; left: 10px; font-size: 12px; color: #666; z-index: 10; background: rgba(255,255,255,0.9); padding: 4px 8px; border-radius: 4px; font-family: monospace;';
+            document.body.appendChild(timeDisplay);
+            
+            const updateTime = () => {
+                timeDisplay.textContent = `IST: ${timeUtils.getCurrentIST()}`;
+            };
+            
+            updateTime();
+            setInterval(updateTime, 1000);
+        }
+
+        // Initialize Application
+        window.addEventListener('DOMContentLoaded', () => {
+            toastManager.init();
+            verifyQuantumService(); // Verify real quantum crypto
+            
+            // Check stored auth
+            const token = localStorage.getItem('token');
+            const username = localStorage.getItem('username');
+            
+            if (token && username) {
+                authToken = token;
+                currentUser = username;
+                showMainApp();
+            }
+            
+            setupEventListeners();
+            
+            // Network status handlers
+            window.addEventListener('online', handleOnline);
+            window.addEventListener('offline', handleOffline);
+            
+            // Page visibility handler
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+            
+            // Add IST time display
+            showCurrentTime();
+            
+            // Log application start time in IST
+            console.log(`Application started at: ${timeUtils.getCurrentIST()} IST`);
+        });
+        
+        // Verify Quantum Service is running with real quantum cryptography (non-blocking)
+        async function verifyQuantumService() {
+            try {
+                // Add timeout to prevent hanging
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+                
+                const response = await fetch(`${QUANTUM_API}/api/quantum/info`, {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.mode !== "REAL QUANTUM CRYPTOGRAPHY") {
+                        console.warn('⚠️ Quantum service not running in real mode');
+                        showToast('Warning: Using simulated quantum crypto - install liboqs for real security', 'warning', 3000);
+                    } else {
+                        console.log('✅ Real quantum cryptography verified');
+                        console.log(`✅ Using liboqs version: ${data.quantum_version}`);
+                        console.log(`✅ Available: ${data.available_kems} KEMs, ${data.available_sigs} Signatures`);
+                        showToast('✅ Quantum-secure encryption active', 'success', 2000);
+                        
+                        // Show server time in IST if available
+                        if (data.server_time) {
+                            console.log(`✅ Server time (IST): ${timeUtils.formatIST(data.server_time, 'datetime')}`);
+                        }
+                    }
+                } else {
+                    console.warn('⚠️ Quantum service not available - using fallback mode');
+                    showToast('Using standard encryption - quantum features unavailable', 'info', 3000);
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.warn('⚠️ Quantum service check timed out');
+                } else {
+                    console.warn('⚠️ Could not verify quantum service:', error.message);
+                }
+                showToast('Platform ready - quantum features will be checked on demand', 'info', 2000);
+            }
+        }
+        
+        function setupEventListeners() {
+            // Message input handlers
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput) {
+                messageInput.addEventListener('input', (e) => {
+                    const count = e.target.value.length;
+                    document.getElementById('charCount').textContent = `${count}/500`;
+                    draftManager.save(e.target.value);
+                    if (count > 0) {
+                        sendTypingIndicator();
+                    }
+                });
+                
+                messageInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                });
+            }
+            
+            // Notification toggle
+            const notifToggle = document.getElementById('desktopNotifToggle');
+            if (notifToggle) {
+                notifToggle.addEventListener('change', (e) => {
+                    if (e.target.checked && 'Notification' in window) {
+                        Notification.requestPermission().then(permission => {
+                            if (permission === 'granted') {
+                                showToast('Desktop notifications enabled', 'success');
+                                localStorage.setItem('notifications_enabled', 'true');
+                            } else {
+                                showToast('Notification permission denied', 'warning');
+                                e.target.checked = false;
+                                localStorage.setItem('notifications_enabled', 'false');
+                            }
+                        });
+                    } else {
+                        localStorage.setItem('notifications_enabled', 'false');
+                    }
+                });
+                
+                // Restore notification preference
+                if (localStorage.getItem('notifications_enabled') === 'true') {
+                    notifToggle.checked = true;
+                }
+            }
+            
+            // Mobile menu handlers
+            document.getElementById('mobileMenuBtn')?.addEventListener('click', toggleSidebar);
+            document.getElementById('sidebarOverlay')?.addEventListener('click', toggleSidebar);
+            
+            // Messages scroll for pagination
+            document.getElementById('messagesArea')?.addEventListener('scroll', handleMessagesScroll);
+        }
+        
+        // UI Functions
+        function toggleAuthMode() {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            
+            if (loginForm.style.display === 'none') {
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+            } else {
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+            }
+        }
+        
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('show');
+        }
+        
+        function showMainApp() {
+            document.getElementById('authContainer').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'flex';
+            document.getElementById('currentUsername').textContent = currentUser;
+            
+            initializeApp();
+        }
+        
+        async function initializeApp() {
+            clearAllIntervals();
+            
+            // Initialize components
+            wsManager.connect();
+            await loadUsers();
+            await checkSession();
+            await checkPendingRequests();
+            
+            // Set up intervals
+            intervals.users = setInterval(loadUsers, 5000);
+            intervals.session = setInterval(checkSession, 10000);
+            intervals.pending = setInterval(checkPendingRequests, 3000);
+            
+            // Process any queued messages
+            setTimeout(() => queueManager.processQueue(), 1000);
+        }
+        
+        function clearAllIntervals() {
+            Object.keys(intervals).forEach(key => {
+                if (intervals[key]) {
+                    clearInterval(intervals[key]);
+                    intervals[key] = null;
+                }
+            });
+        }
+        
+        // Authentication
+        async function login() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                showToast('Please fill all fields', 'warning');
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('username', username);
+                formData.append('password', password);
+                
+                const response = await fetchWithTimeout(`${API_BASE}/api/login`, {
+                    method: 'POST',
+                    body: formData
+                }, 10000);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access_token;
+                    currentUser = data.username;
+                    
+                    // Store auth
+                    localStorage.setItem('token', authToken);
+                    localStorage.setItem('username', currentUser);
+                    
+                    showMainApp();
+                    showToast('Login successful', 'success');
+                } else {
+                    showToast('Invalid username or password', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showToast(error.message === 'Request timeout' ? 'Connection timeout' : 'Connection error', 'error');
+            }
+        }
+        
+        async function register() {
+            const username = document.getElementById('regUsername').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const password = document.getElementById('regPassword').value;
+            
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/api/register`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, email, password})
+                }, 10000);
+                
+                if (response.ok) {
+                    showToast('Registration successful! Please login.', 'success');
+                    toggleAuthMode();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Registration failed', 'error');
+                }
+            } catch (error) {
+                showToast('Connection error', 'error');
+            }
+        }
+        
+        async function logout() {
+            if (activeSession) {
+                await terminateSession();
+            }
+            
+            try {
+                await fetchWithTimeout(`${API_BASE}/api/logout`, {
+                    method: 'POST',
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                }, 5000);
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+            
+            // Clear everything
+            clearAllIntervals();
+            wsManager.close();
+            draftManager.clear();
+            
+            // Clear storage
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Clear IndexedDB
+            if (window.idbKeyval) {
+                try {
+                    await idbKeyval.clear();
+                } catch (error) {
+                    console.error('Failed to clear IndexedDB:', error);
+                }
+            }
+            
+            location.reload();
+        }
+        
+        // User Management
+        async function loadUsers() {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/api/users/available`, {
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                }, 5000);
+                
+                if (response.ok) {
+                    const users = await response.json();
+                    displayUsers(users);
+                }
+            } catch (error) {
+                console.error('Failed to load users:', error);
+            }
+        }
+        
+        function displayUsers(users) {
+            const container = document.getElementById('usersList');
+            if (!container) return;
+            
+            container.innerHTML = users.map(user => {
+                const canConnect = user.can_connect && !activeSession;
+                const statusEmoji = user.status === 'online' ? '🟢' : 
+                                   user.status === 'busy' ? '🟡' : '⚫';
+                
+                return `
+                    <div class="p-3 rounded-lg mb-2 transition-colors ${
+                        canConnect ? 'hover:bg-gray-100 cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                    }" ${canConnect ? `onclick="initiateConnection('${escapeHtml(user.username)}')"` : ''}
+                         role="button" tabindex="${canConnect ? 0 : -1}">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white">
+                                ${escapeHtml(user.username[0].toUpperCase())}
+                            </div>
+                            <div>
+                                <div class="font-medium">${escapeHtml(user.username)} ${statusEmoji}</div>
+                                <div class="text-xs text-gray-500">${escapeHtml(user.status)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Connection Management
+        async function initiateConnection(username) {
+            showConnectionModal();
+            updateConnectionStep(1, 'Generating real quantum keys (ML-KEM-768)...');
+            
+            try {
+                // Generate quantum keys
+                const keyResponse = await fetchWithTimeout(`${QUANTUM_API}/api/quantum/keygen`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({user_id: currentUser})
+                }, 10000);
+                
+                if (!keyResponse.ok) {
+                    throw new Error('Quantum key generation failed - ensure liboqs is installed');
+                }
+                
+                const keyData = await keyResponse.json();
+                updateConnectionStep(2, 'Sending quantum-secured connection request...');
+                
+                // Send connection request
+                const response = await fetchWithTimeout(`${API_BASE}/api/connection/request`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        receiver_username: username,
+                        sender_public_keys: keyData.public_keys
+                    })
+                }, 10000);
+                
+                if (response.ok) {
+                    updateConnectionStep(3, 'Waiting for acceptance...');
+                    showToast('Connection request sent', 'success');
+                    setTimeout(hideConnectionModal, 2000);
+                } else {
+                    throw new Error('Failed to send request');
+                }
+            } catch (error) {
+                showToast(error.message, 'error');
+                hideConnectionModal();
+            }
+        }
+        
+        async function checkPendingRequests() {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/api/connection/pending`, {
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                }, 5000);
+                
+                if (response.ok) {
+                    const requests = await response.json();
+                    if (requests.length > 0) {
+                        displayPendingRequests(requests);
+                    } else {
+                        document.getElementById('pendingRequests').style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to check pending requests:', error);
+            }
+        }
+        
+        function displayPendingRequests(requests) {
+            const container = document.getElementById('pendingRequestsList');
+            const pendingDiv = document.getElementById('pendingRequests');
+            
+            if (!container || !pendingDiv) return;
+            
+            pendingDiv.style.display = 'block';
+            
+            container.innerHTML = requests.map(req => `
+                <div class="bg-white p-2 rounded mb-2">
+                    <div class="text-sm font-medium mb-1">${escapeHtml(req.sender_username)}</div>
+                    <div class="flex gap-2">
+                        <button onclick="acceptRequest('${escapeHtml(req.request_id)}')" 
+                                class="flex-1 px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600">
+                            Accept
+                        </button>
+                        <button onclick="rejectRequest('${escapeHtml(req.request_id)}')" 
+                                class="flex-1 px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600">
+                            Reject
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function acceptRequest(requestId) {
+            try {
+                // Generate quantum keys for acceptance
+                const keyResponse = await fetchWithTimeout(`${QUANTUM_API}/api/quantum/keygen`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({user_id: currentUser})
+                }, 10000);
+                
+                const keyData = await keyResponse.json();
+                
+                // Accept the request
+                const response = await fetchWithTimeout(`${API_BASE}/api/connection/respond`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        request_id: requestId,
+                        accept: true,
+                        receiver_public_keys: keyData.public_keys
+                    })
+                }, 10000);
+                
+                if (response.ok) {
+                    showToast('Connection accepted', 'success');
+                    await checkSession();
+                    await checkPendingRequests();
+                }
+            } catch (error) {
+                showToast('Failed to accept connection', 'error');
+            }
+        }
+        
+        async function rejectRequest(requestId) {
+            try {
+                await fetchWithTimeout(`${API_BASE}/api/connection/respond`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        request_id: requestId,
+                        accept: false
+                    })
+                }, 5000);
+                
+                showToast('Request rejected', 'info');
+                await checkPendingRequests();
+            } catch (error) {
+                showToast('Failed to reject request', 'error');
+            }
+        }
+        
+        // Session Management
+        async function checkSession() {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/api/session/status`, {
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                }, 5000);
+                
+                if (!response.ok) return;
+                
+                const status = await response.json();
+                
+                if (status.active) {
+                    if (!activeSession || activeSession.session_id !== status.session_id) {
+                        // New session established
+                        showToast('Quantum session established!', 'success');
+                        activeSession = status;
+                        await showChatInterface(status);
+                        
+                        // Start message polling
+                        if (!intervals.messages) {
+                            intervals.messages = setInterval(loadMessages, 2000);
+                        }
+                    }
+                    activeSession = status;
+                } else {
+                    if (activeSession) {
+                        // Session ended
+                        showToast('Session ended', 'info');
+                        activeSession = null;
+                        hideChatInterface();
+                        
+                        if (intervals.messages) {
+                            clearInterval(intervals.messages);
+                            intervals.messages = null;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Session check failed:', error);
+            }
+        }
+        
+        async function showChatInterface(session) {
+            // Update session info
+            document.getElementById('sessionInfo').style.display = 'block';
+            document.getElementById('sessionId').textContent = session.session_id?.substring(0, 8) + '...';
+            
+            // Add session established time in IST if available
+            if (session.established_at) {
+                const establishedIST = timeUtils.formatIST(session.established_at, 'datetime');
+                console.log(`Session established at: ${establishedIST} IST`);
+            }
+            
+            // Update chat header
+            document.getElementById('chatHeader').style.display = 'flex';
+            document.getElementById('chatWith').textContent = session.peer_username || 'Unknown';
+            document.getElementById('chatAvatar').textContent = session.peer_username?.[0]?.toUpperCase() || 'U';
+            
+            // Show message area
+            document.getElementById('messageInputArea').style.display = 'block';
+            document.getElementById('welcomeScreen').style.display = 'none';
+            document.getElementById('messagesList').style.display = 'block';
+            
+            // Load cached messages first
+            const cached = await cacheManager.loadMessages(session.session_id);
+            if (cached.length > 0) {
+                displayMessages(cached, true);
+            }
+            
+            // Load draft
+            draftManager.load();
+            
+            // Load fresh messages
+            await loadMessages();
+        }
+        
+        function hideChatInterface() {
+            document.getElementById('sessionInfo').style.display = 'none';
+            document.getElementById('chatHeader').style.display = 'none';
+            document.getElementById('messageInputArea').style.display = 'none';
+            document.getElementById('welcomeScreen').style.display = 'flex';
+            document.getElementById('messagesList').style.display = 'none';
+            document.getElementById('messagesContent').innerHTML = '';
+            lastMessageId = null;
+            messageCount = 0;
+        }
+        
+        // Messaging
+        async function loadMessages() {
+            if (!activeSession) return;
+            
+            try {
+                let url = `${API_BASE}/api/messages?limit=50`;
+                if (lastMessageId) {
+                    url += `&last_message_id=${lastMessageId}`;
+                }
+                
+                const response = await fetchWithTimeout(url, {
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                }, 5000);
+                
+                if (!response.ok) throw new Error('Failed to fetch messages');
+                
+                const serverMessages = await response.json();
+                
+                // Load cached messages
+                const cachedMessages = await cacheManager.loadMessages(activeSession.session_id);
+                
+                // Build map preferring server messages
+                const messageMap = new Map();
+                
+                // Add cached first
+                cachedMessages.forEach(msg => messageMap.set(msg.id, msg));
+                
+                // Override with server (server is authoritative)
+                serverMessages.forEach(msg => messageMap.set(msg.id, msg));
+                
+                // Sort by timestamp
+                const allMessages = Array.from(messageMap.values())
+                    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
+                // Save to cache
+                if (allMessages.length > 0) {
+                    await cacheManager.saveMessages(activeSession.session_id, allMessages);
+                    
+                    // Update lastMessageId to newest
+                    const newest = allMessages[allMessages.length - 1];
+                    lastMessageId = newest.id;
+                }
+                
+                // Display only new messages
+                const newMessages = serverMessages.filter(msg => 
+                    !document.querySelector(`[data-msg-id="${CSS.escape(msg.id)}"]`)
+                );
+                
+                displayMessages(newMessages);
+                
+            } catch (error) {
+                console.error('Failed to load messages:', error);
+                
+                // Fallback to cache
+                const cachedMessages = await cacheManager.loadMessages(activeSession.session_id);
+                const unseenCached = cachedMessages.filter(msg => 
+                    !document.querySelector(`[data-msg-id="${CSS.escape(msg.id)}"]`)
+                );
+                
+                if (unseenCached.length > 0) {
+                    displayMessages(unseenCached, true);
+                }
+            }
+        }
+        
+        function displayMessages(messages, fromCache = false, prepend = false) {
+            const container = document.getElementById('messagesContent');
+            if (!container) return;
+            
+            const wasAtBottom = isScrolledToBottom();
+            
+            messages.forEach(msg => {
+                // Skip if already displayed
+                if (document.querySelector(`[data-msg-id="${CSS.escape(msg.id)}"]`)) return;
+                
+                const isMine = msg.sender_username === currentUser || msg.is_mine;
+                
+                // Convert timestamp to IST
+                const timestamp = timeUtils.formatIST(msg.timestamp, 'time');
+                
+                // Status badges
+                const statusBadge = msg.queued ? ' (Queued)' : '';
+                const criticalBadge = msg.message_type === 'critical' ? '⚠️ ' : '';
+                const verifiedBadge = msg.verified ? '✓✓' : '✓';
+                
+                // Create message using the new component
+                const messageNode = window.MessageBubble.renderMessage(container, {
+                    type: isMine ? 'outgoing' : 'incoming',
+                    text: `${criticalBadge}${msg.content}`,
+                    time: `${timestamp} IST ${verifiedBadge}${statusBadge}`,
+                    avatar: null,
+                    reaction: '💭'
+                });
+                
+                // Add data attribute for tracking
+                messageNode.setAttribute('data-msg-id', msg.id);
+                
+                // Add animation class if not from cache
+                if (!fromCache) {
+                    messageNode.classList.add('message-enter');
+                }
+                
+                // If prepending, we need to move it to the top
+                if (prepend && container.firstChild) {
+                    container.insertBefore(messageNode, container.firstChild);
+                }
+            });
+            
+            // Update message count
+            const totalMessages = document.querySelectorAll('[data-msg-id]').length;
+            document.getElementById('messageCount').textContent = totalMessages;
+            messageCount = totalMessages;
+            
+            // Scroll to bottom if appropriate
+            if (wasAtBottom && !prepend && messages.length > 0) {
+                scrollToBottom();
+            }
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            
+            if (!content || !activeSession) return;
+            
+            // Clear input immediately for better UX
+            input.value = '';
+            document.getElementById('charCount').textContent = '0/500';
+            draftManager.clear();
+            
+            if (!navigator.onLine) {
+                // Queue message offline
+                const queuedMsg = await queueManager.addToQueue({
+                    content,
+                    message_type: messageType
+                });
+                
+                if (queuedMsg) {
+                    // Display as queued
+                    displayMessages([{
+                        id: queuedMsg.id,
+                        content,
+                        sender_username: currentUser,
+                        is_mine: true,
+                        message_type: messageType,
+                        timestamp: new Date().toISOString(),
+                        queued: true,
+                        verified: false
+                    }]);
+                    
+                    showToast('Message queued (offline)', 'warning');
+                }
+                return;
+            }
+            
+            try {
+                await sendMessageToServer(content, messageType);
+                await loadMessages();
+            } catch (error) {
+                // Re-populate input on error
+                input.value = content;
+                document.getElementById('charCount').textContent = `${content.length}/500`;
+                showToast('Failed to send message', 'error');
+            }
+        }
+        
+        async function sendMessageToServer(content, type) {
+            const response = await fetchWithTimeout(`${API_BASE}/api/message/send`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({
+                    content: content,
+                    message_type: type
+                })
+            }, 10000);
+            
+            if (!response.ok) {
+                throw new Error('Send failed');
+            }
+            
+            return response.json();
+        }
+        
+        function setMessageType(type) {
+            messageType = type;
+            
+            const secureBtn = document.getElementById('secureBtn');
+            const criticalBtn = document.getElementById('criticalBtn');
+            
+            if (type === 'secured') {
+                secureBtn.className = 'flex-1 py-2 px-4 rounded-lg font-medium bg-indigo-100 text-indigo-700';
+                criticalBtn.className = 'flex-1 py-2 px-4 rounded-lg font-medium bg-gray-100 text-gray-700';
+            } else {
+                secureBtn.className = 'flex-1 py-2 px-4 rounded-lg font-medium bg-gray-100 text-gray-700';
+                criticalBtn.className = 'flex-1 py-2 px-4 rounded-lg font-medium bg-orange-100 text-orange-700';
+            }
+        }
+        
+        async function terminateSession() {
+            if (!confirm('End this quantum-secured session? All keys will be destroyed.')) return;
+            
+            try {
+                await fetchWithTimeout(`${API_BASE}/api/session/terminate`, {
+                    method: 'POST',
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                }, 5000);
+                
+                // Clear session cache
+                if (activeSession) {
+                    await cacheManager.clearSession(activeSession.session_id);
+                }
+                
+                activeSession = null;
+                hideChatInterface();
+                showToast('Session terminated. Keys destroyed.', 'info');
+            } catch (error) {
+                showToast('Failed to terminate session', 'error');
+            }
+        }
+        
+        // WebSocket Message Handler
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'new_message':
+                    loadMessages();
+                    if (document.hidden && 
+                        localStorage.getItem('notifications_enabled') === 'true' && 
+                        Notification.permission === 'granted') {
+                        new Notification('New message', {
+                            body: data.preview || 'You have a new message',
+                            icon: '/favicon.ico'
+                        });
+                    }
+                    break;
+                    
+                case 'typing':
+                    if (data.user !== currentUser) {
+                        showTypingIndicator(data.user);
+                    }
+                    break;
+                    
+                case 'stopped_typing':
+                    hideTypingIndicator();
+                    break;
+                    
+                case 'connection_request':
+                    checkPendingRequests();
+                    showToast('New connection request', 'info');
+                    break;
+                    
+                case 'session_established':
+                    checkSession();
+                    break;
+                    
+                case 'session_terminated':
+                    if (activeSession) {
+                        activeSession = null;
+                        hideChatInterface();
+                        showToast('Session terminated by peer', 'info');
+                    }
+                    break;
+            }
+        }
+        
+        // Typing Indicator
+        let typingTimer = null;
+        function sendTypingIndicator() {
+            if (!activeSession) return;
+            
+            wsManager.send({type: 'typing', user: currentUser});
+            
+            if (typingTimer) clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                wsManager.send({type: 'stopped_typing', user: currentUser});
+            }, 2000);
+        }
+        
+        function showTypingIndicator(user) {
+            const indicator = document.getElementById('typingIndicator');
+            const userSpan = document.getElementById('typingUser');
+            if (indicator && userSpan) {
+                userSpan.textContent = user;
+                indicator.style.display = 'block';
+            }
+        }
+        
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) {
+                indicator.style.display = 'none';
+            }
+        }
+        
+        // Network Handlers
+        function handleOnline() {
+            document.getElementById('offlineBanner').style.display = 'none';
+            showToast('Connection restored', 'success');
+            wsManager.connect();
+            queueManager.processQueue();
+        }
+        
+        function handleOffline() {
+            document.getElementById('offlineBanner').style.display = 'block';
+            showToast('You are offline', 'warning');
+        }
+        
+        function handleVisibilityChange() {
+            if (document.hidden) {
+                // Reduce polling when hidden
+                if (intervals.messages) {
+                    clearInterval(intervals.messages);
+                    intervals.messages = null;
+                }
+            } else {
+                // Resume when visible
+                if (activeSession && !intervals.messages) {
+                    intervals.messages = setInterval(loadMessages, 2000);
+                    loadMessages();
+                }
+            }
+        }
+        
+        // Scroll Handling
+        function handleMessagesScroll(e) {
+            if (e.target.scrollTop < 100 && !document.querySelector('.loading-more')) {
+                loadMoreMessages();
+            }
+        }
+        
+        async function loadMoreMessages() {
+            if (!activeSession) return;
+            
+            const oldestMsg = document.querySelector('[data-msg-id]');
+            if (!oldestMsg) return;
+            
+            // Add loading indicator
+            const loader = document.createElement('div');
+            loader.className = 'loading-more text-center py-2 text-gray-500';
+            loader.textContent = 'Loading...';
+            document.getElementById('messagesContent').prepend(loader);
+            
+            try {
+                const oldestId = oldestMsg.getAttribute('data-msg-id');
+                const response = await fetchWithTimeout(
+                    `${API_BASE}/api/messages?before_id=${oldestId}&limit=20`,
+                    { headers: {'Authorization': `Bearer ${authToken}`} },
+                    5000
+                );
+                
+                if (response.ok) {
+                    const messages = await response.json();
+                    if (messages.length > 0) {
+                        displayMessages(messages.reverse(), false, true);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load more messages:', error);
+            } finally {
+                loader.remove();
+            }
+        }
+        
+        // Modal Functions with Focus Management
+        function showConnectionModal() {
+            const modal = document.getElementById('connectionModal');
+            if (!modal) return;
+            
+            lastFocusedElement = document.activeElement;
+            modal.style.display = 'flex';
+            modal.setAttribute('aria-hidden', 'false');
+            document.getElementById('mainApp')?.setAttribute('aria-hidden', 'true');
+            
+            // Focus management
+            setTimeout(() => {
+                const cancelBtn = modal.querySelector('button');
+                cancelBtn?.focus();
+            }, 100);
+            
+            // Add event listeners
+            document.addEventListener('focus', trapFocus, true);
+            document.addEventListener('keydown', handleModalEscape);
+        }
+        
+        function hideConnectionModal() {
+            const modal = document.getElementById('connectionModal');
+            if (!modal) return;
+            
+            modal.style.display = 'none';
+            modal.setAttribute('aria-hidden', 'true');
+            document.getElementById('mainApp')?.removeAttribute('aria-hidden');
+            
+            // Remove event listeners
+            document.removeEventListener('focus', trapFocus, true);
+            document.removeEventListener('keydown', handleModalEscape);
+            
+            // Restore focus
+            if (lastFocusedElement && lastFocusedElement.focus) {
+                lastFocusedElement.focus();
+            }
+        }
+        
+        function trapFocus(e) {
+            const modal = document.getElementById('connectionModal');
+            if (modal && !modal.contains(e.target)) {
+                e.stopPropagation();
+                const cancelBtn = modal.querySelector('button');
+                cancelBtn?.focus();
+            }
+        }
+        
+        function handleModalEscape(e) {
+            if (e.key === 'Escape') {
+                hideConnectionModal();
+            }
+        }
+        
+        function updateConnectionStep(step, message) {
+            const container = document.getElementById('progressSteps');
+            if (!container) return;
+            
+            container.innerHTML = `
+                <div class="text-center" role="status">
+                    <div class="text-lg font-medium mb-2">Step ${step}/5</div>
+                    <div class="text-sm text-gray-600">${escapeHtml(message)}</div>
+                    <div class="mt-4">
+                        <div class="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full spin-animation mx-auto"></div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Utility Functions
+        function isScrolledToBottom() {
+            const container = document.getElementById('messagesArea');
+            if (!container) return false;
+            return container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+        }
+        
+        function scrollToBottom() {
+            const container = document.getElementById('messagesArea');
+            if (container) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+        
+        function escapeHtml(text) {
+            if (typeof text !== 'string') return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Global error handler
+        window.addEventListener('unhandledrejection', event => {
+            console.error('Unhandled promise rejection:', event.reason);
+            if (event.reason?.message?.includes('fetch')) {
+                showToast('Network error. Please check your connection.', 'error');
+            }
+        });
+
+        // Message Bubble Component
+        (function(){
+          const tpl = document.getElementById('tpl-message');
+          if(!tpl) return;
+
+          function renderMessage(container, opts = {}){
+            const node = tpl.content.firstElementChild.cloneNode(true);
+            node.classList.toggle('message--outgoing', opts.type === 'outgoing');
+            node.classList.toggle('message--incoming', opts.type !== 'outgoing');
+
+            const avatar = node.querySelector('.message__avatar');
+            const bubble = node.querySelector('.message__bubble');
+            const timeEl = node.querySelector('.message__time');
+            const reactBtn = node.querySelector('.message__react');
+
+            if(opts.avatar){
+              avatar.src = opts.avatar;
+              avatar.alt = opts.avatarAlt || 'avatar';
+            } else {
+              avatar.remove();
+            }
+
+            bubble.textContent = opts.text || '';
+            timeEl.textContent = opts.time || '';
+            reactBtn.textContent = opts.reaction || '💭';
+            reactBtn.setAttribute('aria-label', `React to message: ${reactBtn.textContent}`);
+
+            reactBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              const active = reactBtn.classList.toggle('react--active');
+              reactBtn.setAttribute('aria-pressed', String(active));
+            });
+
+            container.appendChild(node);
+            return node;
+          }
+
+          // Expose globally
+          window.MessageBubble = { renderMessage };
+        })();
+    </script>
+</body>
+</html>
