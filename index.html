@@ -610,8 +610,29 @@
             <!-- Users List -->
             <div class="flex-1 overflow-y-auto custom-scrollbar">
                 <div class="p-4">
-                    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Available Users</h3>
-                    <div id="usersList"></div>
+                    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Find User</h3>
+                    
+                    <!-- Search Bar -->
+                    <div class="mb-4">
+                        <input type="text" 
+                               id="userSearchInput" 
+                               placeholder="Enter exact username" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                               autocomplete="off"
+                               spellcheck="false">
+                        <p class="text-xs text-gray-500 mt-2">Case-sensitive search</p>
+                    </div>
+                    
+                    <!-- Search Results -->
+                    <div id="searchResults" style="display:none;">
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Search Result</h4>
+                        <div id="usersList"></div>
+                    </div>
+                    
+                    <!-- No Results Message -->
+                    <div id="noResults" style="display:none;" class="text-center py-4">
+                        <p class="text-sm text-gray-500">No user found</p>
+                    </div>
                 </div>
             </div>
 
@@ -1304,6 +1325,24 @@
             document.getElementById('mobileMenuBtn')?.addEventListener('click', toggleSidebar);
             document.getElementById('sidebarOverlay')?.addEventListener('click', toggleSidebar);
             
+            // User search handler
+            const userSearchInput = document.getElementById('userSearchInput');
+            if (userSearchInput) {
+                userSearchInput.addEventListener('input', (e) => {
+                    const searchTerm = e.target.value;
+                    searchUsers(searchTerm);
+                });
+                
+                // Clear search on focus out for security
+                userSearchInput.addEventListener('blur', () => {
+                    setTimeout(() => {
+                        userSearchInput.value = '';
+                        document.getElementById('searchResults').style.display = 'none';
+                        document.getElementById('noResults').style.display = 'none';
+                    }, 200); // Small delay to allow clicking on results
+                });
+            }
+            
             // Messages scroll for pagination
             document.getElementById('messagesArea')?.addEventListener('scroll', handleMessagesScroll);
         }
@@ -1340,14 +1379,14 @@
             
             // Initialize components
             wsManager.connect();
-            await loadUsers();
+            await loadUsers(); // Load users but don't display them
             await checkSession();
             await checkPendingRequests();
             
-            // Set up intervals
-            intervals.users = setInterval(loadUsers, 5000);
+            // Set up intervals - but don't poll for users display
             intervals.session = setInterval(checkSession, 10000);
             intervals.pending = setInterval(checkPendingRequests, 3000);
+            // Remove the user polling interval since we're using search now
             
             // Process any queued messages
             setTimeout(() => queueManager.processQueue(), 1000);
@@ -1462,6 +1501,9 @@
         }
         
         // User Management
+        // User Management with Secure Search
+        let allUsers = []; // Store all users but don't display them
+
         async function loadUsers() {
             try {
                 const response = await fetchWithTimeout(`${API_BASE}/api/users/available`, {
@@ -1469,11 +1511,36 @@
                 }, 5000);
                 
                 if (response.ok) {
-                    const users = await response.json();
-                    displayUsers(users);
+                    allUsers = await response.json();
+                    // Don't display users automatically
+                    // Users will only be shown when searched
                 }
             } catch (error) {
                 console.error('Failed to load users:', error);
+            }
+        }
+
+        function searchUsers(searchTerm) {
+            if (!searchTerm || searchTerm.trim().length === 0) {
+                // Hide results if search is empty
+                document.getElementById('searchResults').style.display = 'none';
+                document.getElementById('noResults').style.display = 'none';
+                return;
+            }
+            
+            // Case-sensitive exact match search
+            const matchedUsers = allUsers.filter(user => 
+                user.username === searchTerm // Exact case-sensitive match
+            );
+            
+            if (matchedUsers.length > 0) {
+                displayUsers(matchedUsers);
+                document.getElementById('searchResults').style.display = 'block';
+                document.getElementById('noResults').style.display = 'none';
+            } else {
+                document.getElementById('usersList').innerHTML = '';
+                document.getElementById('searchResults').style.display = 'none';
+                document.getElementById('noResults').style.display = 'block';
             }
         }
         
