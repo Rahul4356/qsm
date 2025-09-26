@@ -78,18 +78,18 @@ echo 🎉 Setup Complete!
 echo ==================
 echo.
 echo 🚀 To start the platform:
-echo    deploy_ssl_windows.bat
+echo    Option 1 (HTTPS): deploy_ssl_windows.bat     (Recommended)
+echo    Option 2 (HTTP):  deploy_http_windows.bat    (If mkcert fails)
 echo.
 echo 🌐 Or start services individually:
 echo    venv\Scripts\activate
 echo    python backend\service.py    (Quantum API)
-echo    python backend\app.py        (Main App)
+echo    python backend\app.py        (Main App)  
 echo    python start_https_server.py (Frontend)
 echo.
-echo 📋 Default URLs:
-echo    Frontend: https://localhost:8000
-echo    Main App: https://localhost:4000  
-echo    API: https://localhost:3001
+echo 📋 Access URLs:
+echo    HTTPS: https://localhost:8000 (secure)
+echo    HTTP:  http://localhost:8000  (fallback)
 echo.
 echo ✅ Ready for deployment!
 pause

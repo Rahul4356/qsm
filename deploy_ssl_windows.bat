@@ -49,25 +49,84 @@ if not exist "localhost+3.pem" (
     echo ❌ SSL certificates not found!
     echo 🔒 Creating certificates with mkcert...
     
+    REM Try multiple ways to find mkcert
+    set "MKCERT_FOUND=0"
+    
+    REM Check if mkcert is in PATH
     where mkcert >nul 2>nul
-    if errorlevel 1 (
-        echo ❌ mkcert not found! Please install mkcert for SSL support
-        echo    Windows: choco install mkcert  OR  scoop install mkcert
-        echo    Then run: mkcert -install
-        pause
-        exit /b 1
+    if not errorlevel 1 (
+        set "MKCERT_FOUND=1"
+        set "MKCERT_CMD=mkcert"
     )
+    
+    REM Check common installation paths
+    if !MKCERT_FOUND! equ 0 (
+        if exist "%ProgramFiles%\mkcert\mkcert.exe" (
+            set "MKCERT_FOUND=1"
+            set "MKCERT_CMD=%ProgramFiles%\mkcert\mkcert.exe"
+        )
+    )
+    
+    REM Check Chocolatey path
+    if !MKCERT_FOUND! equ 0 (
+        if exist "%ChocolateyInstall%\bin\mkcert.exe" (
+            set "MKCERT_FOUND=1" 
+            set "MKCERT_CMD=%ChocolateyInstall%\bin\mkcert.exe"
+        )
+    )
+    
+    REM Check Scoop path  
+    if !MKCERT_FOUND! equ 0 (
+        if exist "%USERPROFILE%\scoop\shims\mkcert.exe" (
+            set "MKCERT_FOUND=1"
+            set "MKCERT_CMD=%USERPROFILE%\scoop\shims\mkcert.exe"
+        )
+    )
+    
+    if !MKCERT_FOUND! equ 0 (
+        echo ❌ mkcert not found in common locations!
+        echo 💡 Install mkcert for SSL support:
+        echo    Option 1: choco install mkcert
+        echo    Option 2: scoop install mkcert  
+        echo    Option 3: Download from https://github.com/FiloSottile/mkcert/releases
+        echo    Then run: mkcert -install
+        echo.
+        echo 🔧 Alternative: Continue without SSL (HTTP only)?
+        set /p "continue=Continue without SSL? (y/N): "
+        if /i "!continue!" neq "y" (
+            pause
+            exit /b 1
+        )
+        echo ⚠️  Starting without SSL encryption...
+        goto :start_services
+    )
+    
+    echo ✅ mkcert found: !MKCERT_CMD!
     
     if not "!LOCAL_IP!"=="localhost" (
         echo 📜 Generating certificates for localhost, 127.0.0.1, and !LOCAL_IP!
-        mkcert localhost 127.0.0.1 ::1 !LOCAL_IP!
+        "!MKCERT_CMD!" localhost 127.0.0.1 ::1 !LOCAL_IP!
     ) else (
         echo 📜 Generating certificates for localhost only
-        mkcert localhost 127.0.0.1 ::1
+        "!MKCERT_CMD!" localhost 127.0.0.1 ::1
+    )
+    
+    if not exist "localhost+3.pem" (
+        echo ❌ Certificate generation failed!
+        echo 💡 Try running: mkcert -install
+        pause
+        exit /b 1
     )
 )
 
-echo ✅ SSL certificates verified
+:start_services
+if exist "localhost+3.pem" (
+    echo ✅ SSL certificates verified - HTTPS mode
+    set "SSL_MODE=HTTPS"
+) else (
+    echo ⚠️  No SSL certificates - HTTP mode  
+    set "SSL_MODE=HTTP"
+)
 
 REM Check if Python is available
 python --version >nul 2>nul
