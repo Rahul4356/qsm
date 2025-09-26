@@ -1444,8 +1444,26 @@ if __name__ == "__main__":
     print("="*80 + "\n")
     
     import os
-    cert_path = "/Users/rahulsemwal/Desktop/ducc beta testing/localhost+3.pem"
-    key_path = "/Users/rahulsemwal/Desktop/ducc beta testing/localhost+3-key.pem"
+    import subprocess
+    
+    # Get local IP for certificate filename
+    try:
+        result = subprocess.run(['ifconfig'], capture_output=True, text=True)
+        local_ip = "localhost"  # fallback
+        for line in result.stdout.split('\n'):
+            if 'inet ' in line and '127.0.0.1' not in line and 'inet ' in line:
+                local_ip = line.split()[1]
+                break
+    except:
+        local_ip = "localhost"
+    
+    # Try IP-based certificates first, fallback to localhost
+    cert_path = f"{local_ip}+3.pem"
+    key_path = f"{local_ip}+3-key.pem"
+    
+    if not (os.path.exists(cert_path) and os.path.exists(key_path)):
+        cert_path = "localhost+3.pem"
+        key_path = "localhost+3-key.pem"
     
     if os.path.exists(cert_path) and os.path.exists(key_path):
         print("🔒 SSL certificates found - enabling HTTPS")

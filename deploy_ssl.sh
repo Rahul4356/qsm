@@ -2,7 +2,22 @@
 # SSL Deployment Script for QMS Platform
 # Starts all services with HTTPS encryption
 
-cd "/Users/rahulsemwal/Desktop/ducc beta testing"
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Get local IP address dynamically
+LOCAL_IP=$(ifconfig | grep -E "inet [0-9]+\." | grep -v "127.0.0.1" | head -1 | awk '{print $2}')
+
+echo "🔒 Starting QMS Platform with SSL Encryption"
+echo "============================================="
+echo "📍 Detected local IP: $LOCAL_IP"h
+# SSL Deployment Script for QMS Platform
+# Starts all services with HTTPS encryption
+
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
 echo "🔒 Starting QMS Platform with SSL Encryption"
 echo "=============================================="
@@ -16,11 +31,23 @@ lsof -ti:8000,3001,4000 | xargs kill -9 2>/dev/null || true
 
 sleep 2
 
+# Set certificate filenames based on IP
+CERT_FILE="${LOCAL_IP}+3.pem"
+KEY_FILE="${LOCAL_IP}+3-key.pem"
+
 # Check SSL certificates
-if [[ ! -f "localhost+3.pem" || ! -f "localhost+3-key.pem" ]]; then
+if [[ ! -f "$CERT_FILE" || ! -f "$KEY_FILE" ]]; then
     echo "❌ SSL certificates not found!"
     echo "Creating certificates with mkcert..."
-    mkcert localhost 127.0.0.1 ::1 10.237.138.1
+    # Use IP address as primary name for better compatibility
+    mkcert $LOCAL_IP localhost 127.0.0.1 ::1
+else
+    # Check if certificates include current IP, regenerate if not
+    if ! openssl x509 -in "$CERT_FILE" -text -noout 2>/dev/null | grep -q "$LOCAL_IP"; then
+        echo "🔄 Regenerating certificates with current IP..."
+        rm -f "$CERT_FILE" "$KEY_FILE"
+        mkcert $LOCAL_IP localhost 127.0.0.1 ::1
+    fi
 fi
 
 echo "✅ SSL certificates verified"
@@ -56,9 +83,9 @@ echo "🔒 Main App:     https://localhost:4000"
 echo "🔒 Quantum API:  https://localhost:3001"
 echo ""
 echo "🌐 LAN Access:"
-echo "🔒 Frontend:     https://10.237.138.1:8000"
-echo "🔒 Main App:     https://10.237.138.1:4000"
-echo "🔒 Quantum API:  https://10.237.138.1:3001"
+echo "🔒 Frontend:     https://$LOCAL_IP:8000"
+echo "🔒 Main App:     https://$LOCAL_IP:4000"
+echo "🔒 Quantum API:  https://$LOCAL_IP:3001"
 echo ""
 echo "📋 Process IDs:"
 echo "   Quantum Service: $QUANTUM_PID"
