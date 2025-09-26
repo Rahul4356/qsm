@@ -12,8 +12,26 @@ import sys
 # Configuration
 PORT = 8000
 HOST = "0.0.0.0"
-CERT_FILE = "localhost+3.pem"
-KEY_FILE = "localhost+3-key.pem"
+
+# Get local IP for certificate filename
+import subprocess
+try:
+    result = subprocess.run(['ifconfig'], capture_output=True, text=True)
+    local_ip = "localhost"  # fallback
+    for line in result.stdout.split('\n'):
+        if 'inet ' in line and '127.0.0.1' not in line and 'inet ' in line:
+            local_ip = line.split()[1]
+            break
+except:
+    local_ip = "localhost"
+
+CERT_FILE = f"{local_ip}+3.pem"
+KEY_FILE = f"{local_ip}+3-key.pem"
+
+# Fallback to localhost certificates if IP-based ones don't exist
+if not os.path.exists(CERT_FILE) or not os.path.exists(KEY_FILE):
+    CERT_FILE = "localhost+3.pem"
+    KEY_FILE = "localhost+3-key.pem"
 
 class MyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
@@ -39,11 +57,23 @@ if __name__ == "__main__":
         context.load_cert_chain(certfile=CERT_FILE, keyfile=KEY_FILE)
         httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
         
+        # Get local IP address
+        import subprocess
+        try:
+            result = subprocess.run(['ifconfig'], capture_output=True, text=True)
+            local_ip = "unknown"
+            for line in result.stdout.split('\n'):
+                if 'inet ' in line and '127.0.0.1' not in line and 'inet ' in line:
+                    local_ip = line.split()[1]
+                    break
+        except:
+            local_ip = "unknown"
+        
         print("\n" + "="*60)
         print("🔒 QMS HTTPS Frontend Server")
         print("="*60)
         print(f"🌐 Local:   https://localhost:{PORT}")
-        print(f"🌐 Network: https://10.237.138.1:{PORT}")
+        print(f"🌐 Network: https://{local_ip}:{PORT}")
         print("="*60)
         print("✅ SSL encryption enabled")
         print("✅ Security headers configured")
