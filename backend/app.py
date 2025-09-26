@@ -760,7 +760,7 @@ async def respond_to_connection(
             sender_keys = json.loads(conn_request.sender_public_keys)
             
             # Perform key encapsulation via quantum service
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
                 encap_response = await client.post(
                     f"{QUANTUM_API}/api/quantum/encapsulate",
                     json={
@@ -884,7 +884,7 @@ async def send_message(
     ecdsa_sig = ""
     sig_metadata = {}
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
         try:
             sign_response = await client.post(
                 f"{QUANTUM_API}/api/quantum/wrap_sign",
@@ -1011,7 +1011,7 @@ async def get_messages(
     
     decrypted_messages = []
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
         for msg in messages:
             # Mark as read
             if msg.receiver_id == current_user.id and not msg.is_read:
@@ -1177,7 +1177,7 @@ async def terminate_session(
     
     # Try to clear keys in quantum service
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=False) as client:
             await client.delete(f"{QUANTUM_API}/api/quantum/session/{current_user.username}")
             if other_user:
                 await client.delete(f"{QUANTUM_API}/api/quantum/session/{other_user.username}")
