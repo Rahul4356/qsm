@@ -29,25 +29,45 @@ A production-ready, quantum-secure messaging platform using post-quantum cryptog
 
 ## 📦 Quick Start
 
-### Option 1: Automated Setup (Recommended)
+### 🐧 Linux/macOS Setup
 
+#### Option 1: Automated Setup (Recommended)
 ```bash
-git clone https://github.com/yourusername/qms-platform.git
-cd qms-platform
+git clone https://github.com/Rahul4356/qsm.git
+cd qsm
 chmod +x setup.sh
 ./setup.sh
 ./deploy_ssl.sh
 ```
 
-### Option 2: Manual Setup
-
+#### Option 2: Manual Setup
 ```bash
-git clone https://github.com/yourusername/qms-platform.git
-cd qms-platform
+git clone https://github.com/Rahul4356/qsm.git
+cd qsm
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ./deploy_ssl.sh
+```
+
+### 🪟 Windows Setup
+
+#### Option 1: Automated Setup (Recommended)
+```cmd
+git clone https://github.com/Rahul4356/qsm.git
+cd qsm
+setup_windows.bat
+deploy_ssl_windows.bat
+```
+
+#### Option 2: Manual Setup
+```cmd
+git clone https://github.com/Rahul4356/qsm.git
+cd qsm
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+deploy_ssl_windows.bat
 ```
 
 ### Option 3: Portable Package (For Production Devices)
