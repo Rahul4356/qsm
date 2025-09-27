@@ -43,7 +43,7 @@ python -m pip install --upgrade pip
 
 REM Install requirements
 if exist "requirements.txt" (
-    echo 📥 Installing Python dependencies...
+    echo 📥 Installing Python dependencies from requirements.txt...
     pip install -r requirements.txt
     if errorlevel 1 (
         echo ❌ Failed to install some dependencies
@@ -51,8 +51,17 @@ if exist "requirements.txt" (
     ) else (
         echo ✅ Dependencies installed successfully
     )
+) else if exist "backend\requirements.txt" (
+    echo 📥 Installing Python dependencies from backend\requirements.txt...
+    pip install -r backend\requirements.txt
+    if errorlevel 1 (
+        echo ❌ Failed to install some dependencies
+        echo 💡 Try running as Administrator or check your internet connection
+    ) else (
+        echo ✅ Dependencies installed successfully
+    )
 ) else (
-    echo ⚠️  requirements.txt not found, installing basic dependencies...
+    echo ⚠️  No requirements.txt found, installing basic dependencies...
     pip install fastapi uvicorn cryptography sqlalchemy pydantic bcrypt PyJWT httpx python-multipart websockets
 )
 
