@@ -15,28 +15,30 @@ echo 📁 Working Directory: %SCRIPT_DIR%
 
 REM Detect local IP address
 echo 🌐 Detecting network configuration...
-set "LOCAL_IP="
+set "LOCAL_IP=localhost"
 
-REM Try to get IP address from ipconfig
-for /f "tokens=2 delims=:" %%i in ('ipconfig ^| findstr /i "IPv4"') do (
-    for /f "tokens=1" %%j in ("%%i") do (
-        set "TEMP_IP=%%j"
-        REM Remove leading spaces
+REM Simple IP detection method
+for /f "tokens=4 delims= " %%i in ('route print ^| findstr "\<0.0.0.0\>"') do set "LOCAL_IP=%%i"
+
+REM Fallback method if route doesn't work
+if "!LOCAL_IP!"=="localhost" (
+    for /f "tokens=2 delims=:" %%i in ('ipconfig ^| findstr "IPv4"') do (
+        set "TEMP_IP=%%i"
         set "TEMP_IP=!TEMP_IP: =!"
-        REM Check if it's not localhost
         if not "!TEMP_IP!"=="127.0.0.1" (
-            if not defined LOCAL_IP (
+            if not "!TEMP_IP!"=="" (
                 set "LOCAL_IP=!TEMP_IP!"
+                goto :ip_found
             )
         )
     )
 )
 
-if defined LOCAL_IP (
+:ip_found
+if not "!LOCAL_IP!"=="localhost" (
     echo ✅ Detected Local IP: !LOCAL_IP!
 ) else (
-    echo ⚠️  Could not detect local IP - using localhost only
-    set "LOCAL_IP=localhost"
+    echo ⚠️  Using localhost only
 )
 
 REM Kill existing processes
