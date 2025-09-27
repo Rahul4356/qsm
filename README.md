@@ -29,18 +29,35 @@ A production-ready, quantum-secure messaging platform using post-quantum cryptog
 
 ## 📦 Quick Start
 
+### ⚠️ **IMPORTANT: liboqs Quantum Library Required**
+
+This platform uses **REAL quantum cryptography** (not simulation) and requires the liboqs library to be compiled and installed.
+
 ### 🐧 Linux/macOS Setup
 
-#### Option 1: Automated Setup (Recommended)
+#### Option 1: Complete Automated Setup (Recommended)
 ```bash
-git clone https://github.com/Rahul4356/qsm.git
-cd qsm
-chmod +x setup.sh
-./setup.sh
+# One-command setup with liboqs compilation
+git clone https://github.com/Rahul4356/qsm.git && cd qsm && chmod +x setup_complete.sh && ./setup_complete.sh
+
+# Then deploy
 ./deploy_ssl.sh
 ```
 
-#### Option 2: Manual Setup
+#### Option 2: Step-by-Step Setup
+```bash
+git clone https://github.com/Rahul4356/qsm.git
+cd qsm
+
+# Complete setup with liboqs compilation
+chmod +x setup_complete.sh
+./setup_complete.sh
+
+# Deploy with SSL
+./deploy_ssl.sh
+```
+
+#### Option 3: Simple Setup (Basic Dependencies Only)
 ```bash
 git clone https://github.com/Rahul4356/qsm.git
 cd qsm
@@ -52,22 +69,28 @@ pip install -r requirements.txt
 
 ### 🪟 Windows Setup
 
-#### Option 1: Automated Setup (Recommended)
-```cmd
-git clone https://github.com/Rahul4356/qsm.git
-cd qsm
-setup_windows.bat
-deploy_ssl_windows.bat
+#### Prerequisites:
+- **Visual Studio Build Tools 2019/2022** (for liboqs compilation)
+- **CMake** (`winget install Kitware.CMake`)
+- **Python 3.8+** (`winget install Python.Python.3`)
+
+#### Option 1: Complete Setup with liboqs (Recommended)
+```powershell
+# Complete setup with quantum library compilation
+git clone https://github.com/Rahul4356/qsm.git && cd qsm && .\setup_complete_windows.bat
+
+# Then deploy
+.\deploy_ssl_windows.bat
 ```
 
-#### Option 2: Manual Setup
-```cmd
-git clone https://github.com/Rahul4356/qsm.git
-cd qsm
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-deploy_ssl_windows.bat
+#### Option 2: Simple Setup (Basic Dependencies)
+```powershell
+git clone https://github.com/Rahul4356/qsm.git && cd qsm && .\setup_windows.bat && .\deploy_ssl_windows.bat
+```
+
+#### Option 3: HTTP Fallback (No SSL)
+```powershell
+git clone https://github.com/Rahul4356/qsm.git && cd qsm && .\setup_windows.bat && .\deploy_http_windows.bat
 ```
 
 ### Option 3: Portable Package (For Production Devices)
