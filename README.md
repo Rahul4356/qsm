@@ -1,8 +1,8 @@
-# 🔐 QMS Platform - Quantum Messaging System
+# 🔐 PQCTransitSecure - Quantum Messaging System
 
 A production-ready, quantum-secure messaging platform using post-quantum cryptography with SSL encryption and universal device access.
 
-![QMS Platform](https://img.shields.io/badge/Quantum-Secure-blue) ![SSL](https://img.shields.io/badge/SSL-Enabled-green) ![License](https://img.shields.io/badge/License-MIT-yellow) ![Python](https://img.shields.io/badge/Python-3.8+-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-Latest-red)
+![PQCTransitSecure](https://img.shields.io/badge/Quantum-Secure-blue) ![SSL](https://img.shields.io/badge/SSL-Enabled-green) ![Docker](https://img.shields.io/badge/Docker-Ready-blue) ![License](https://img.shields.io/badge/License-MIT-yellow) ![Python](https://img.shields.io/badge/Python-3.8+-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-Latest-red)
 
 ## 🚀 Features
 
@@ -93,7 +93,38 @@ git clone https://github.com/Rahul4356/qsm.git && cd qsm && .\setup_windows.bat 
 git clone https://github.com/Rahul4356/qsm.git && cd qsm && .\setup_windows.bat && .\deploy_http_windows.bat
 ```
 
-### Option 3: Portable Package (For Production Devices)
+### 🐳 Docker Deployment (Platform Independent - Recommended)
+
+**Perfect for production and easy deployment to any device!**
+
+#### Prerequisites:
+- Docker Desktop or Docker Engine (20.10+)
+- Docker Compose (v2.0+)
+- liboqs must be built locally once
+
+#### Quick Docker Deploy:
+```bash
+git clone https://github.com/Rahul4356/qsm.git && cd qsm
+
+# Build liboqs locally (required once per machine)
+./setup_complete.sh
+
+# Deploy with Docker
+./deploy_docker.sh
+```
+
+#### What Docker Provides:
+✅ **Platform-independent Python environment**  
+✅ **All dependencies containerized**  
+✅ **Easy service orchestration**  
+✅ **Isolated execution environment**  
+✅ **Simple updates and rollbacks**  
+
+**Note:** liboqs is mounted as a volume (not containerized) for optimal performance and platform compatibility.
+
+📖 **Full Docker documentation:** See [DOCKER_README.md](DOCKER_README.md)
+
+### Option 4: Portable Package (For Production Devices)
 
 ```bash
 # Create portable package

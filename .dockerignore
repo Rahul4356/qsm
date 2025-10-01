@@ -1,0 +1,80 @@
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Logs
+*.log
+*.log.*
+
+# Database files (mounted as volumes)
+*.db
+*.sqlite
+
+# SSL certificates (mounted as volumes)
+*.pem
+*.key
+
+# liboqs (mounted as volumes, not copied)
+liboqs/
+liboqs-python/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation and scripts not needed in container
+README.md
+USAGE_GUIDE.md
+*.md
+*.sh
+*.bat
+setup_*.sh
+setup_*.bat
+deploy_*.sh
+deploy_*.bat
+create_*.sh
+push_*.sh
+verify_*.sh
+
+# Test files
+tests/
+test_*.py
+
+# Node modules (if any)
+node_modules/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Docker files themselves
+Dockerfile*
+docker-compose*.yml
+.dockerignore

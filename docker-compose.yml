@@ -1,0 +1,114 @@
+services:
+  # Quantum Crypto Service (Port 3001)
+  quantum-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pqc-quantum-service
+    command: >
+      sh -c "export PYTHONPATH=/app/liboqs-python:$$PYTHONPATH &&
+             export LD_LIBRARY_PATH=/app/liboqs/build/lib:$$LD_LIBRARY_PATH &&
+             export DYLD_LIBRARY_PATH=/app/liboqs/build/lib:$$DYLD_LIBRARY_PATH &&
+             python backend/service.py"
+    ports:
+      - "3001:3001"
+    volumes:
+      # Mount liboqs (must be built locally on each machine)
+      - ./liboqs:/app/liboqs:ro
+      - ./liboqs-python:/app/liboqs-python:ro
+      # Mount SSL certificates
+      - ./localhost+3.pem:/app/localhost+3.pem:ro
+      - ./localhost+3-key.pem:/app/localhost+3-key.pem:ro
+      # Logs and data
+      - ./quantum_ssl.log:/app/quantum_ssl.log
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SSL_CERT_FILE=/app/localhost+3.pem
+      - SSL_KEY_FILE=/app/localhost+3-key.pem
+    networks:
+      - pqc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Main Application (Port 4000)
+  main-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pqc-main-app
+    command: python backend/app.py
+    ports:
+      - "4000:4000"
+    volumes:
+      # Mount SSL certificates
+      - ./localhost+3.pem:/app/localhost+3.pem:ro
+      - ./localhost+3-key.pem:/app/localhost+3-key.pem:ro
+      # Database and logs
+      - ./qms_quantum.db:/app/qms_quantum.db
+      - ./app_ssl.log:/app/app_ssl.log
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SSL_CERT_FILE=/app/localhost+3.pem
+      - SSL_KEY_FILE=/app/localhost+3-key.pem
+      - QUANTUM_API=https://quantum-service:3001
+    networks:
+      - pqc-network
+    depends_on:
+      - quantum-service
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend HTTPS Server (Port 8000)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pqc-frontend
+    command: python start_https_server.py
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount SSL certificates
+      - ./localhost+3.pem:/app/localhost+3.pem:ro
+      - ./localhost+3-key.pem:/app/localhost+3-key.pem:ro
+      # Frontend files (for hot reload in development)
+      - ./index.html:/app/index.html:ro
+      - ./sw.js:/app/sw.js:ro
+      - ./favicon.ico:/app/favicon.ico:ro
+      # Logs
+      - ./frontend_ssl.log:/app/frontend_ssl.log
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SSL_CERT_FILE=/app/localhost+3.pem
+      - SSL_KEY_FILE=/app/localhost+3-key.pem
+    networks:
+      - pqc-network
+    depends_on:
+      - main-app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-k", "https://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  pqc-network:
+    driver: bridge
+
+volumes:
+  data:
+    driver: local
