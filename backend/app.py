@@ -879,36 +879,40 @@ async def send_message(
         session_id=str(session.id)
     )
     
-    # Sign all messages for quantum security
+    # Sign ONLY critical messages for quantum security (cost optimization)
     falcon_sig = ""
     ecdsa_sig = ""
     sig_metadata = {}
     
-    async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
-        try:
-            sign_response = await client.post(
-                f"{QUANTUM_API}/api/quantum/wrap_sign",
-                json={
-                    "message": message.content,
-                    "user_id": current_user.username,
-                    "signature_type": "wrap_sign",
-                    "hash_algorithm": "SHA256"
-                }
-            )
-            
-            if sign_response.status_code == 200:
-                signatures = sign_response.json()
-                falcon_sig = signatures["falcon_signature"]
-                ecdsa_sig = signatures.get("ecdsa_signature", "")
-                sig_metadata = {
-                    "algorithm": signatures.get("algorithm", "Unknown"),
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "message_type": message.message_type
-                }
-            else:
-                logger.warning(f"Signing failed with status {sign_response.status_code}")
-        except Exception as e:
-            logger.error(f"Signing request failed: {str(e)}")
+    if message.message_type == "critical":
+        logger.info(f"Signing critical message with Falcon-512 quantum signature")
+        async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
+            try:
+                sign_response = await client.post(
+                    f"{QUANTUM_API}/api/quantum/wrap_sign",
+                    json={
+                        "message": message.content,
+                        "user_id": current_user.username,
+                        "signature_type": "wrap_sign",
+                        "hash_algorithm": "SHA256"
+                    }
+                )
+                
+                if sign_response.status_code == 200:
+                    signatures = sign_response.json()
+                    falcon_sig = signatures["falcon_signature"]
+                    ecdsa_sig = signatures.get("ecdsa_signature", "")
+                    sig_metadata = {
+                        "algorithm": signatures.get("algorithm", "Unknown"),
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "message_type": message.message_type
+                    }
+                else:
+                    logger.warning(f"Critical message signing failed with status {sign_response.status_code}")
+            except Exception as e:
+                logger.error(f"Critical message signing request failed: {str(e)}")
+    else:
+        logger.debug(f"Secure message - no signature required (cost optimization)")
     
     # Determine receiver
     receiver_id = session.user2_id if session.user1_id == current_user.id else session.user1_id
@@ -1020,8 +1024,8 @@ async def get_messages(
             
             verified = False
             
-            # Verify signature if present (all messages should have signatures now)
-            if conn_request and msg.falcon_signature:
+            # Verify signature ONLY for critical messages (cost optimization)
+            if msg.message_type == "critical" and conn_request and msg.falcon_signature:
                 try:
                     # Get sender's public keys
                     if msg.sender_id == conn_request.sender_id:
@@ -1042,7 +1046,7 @@ async def get_messages(
                         except:
                             decrypted_content = "[Decryption failed]"
                         
-                        # Verify signature
+                        # Verify critical message signature
                         verify_response = await client.post(
                             f"{QUANTUM_API}/api/quantum/wrap_verify",
                             json={
@@ -1058,11 +1062,12 @@ async def get_messages(
                         if verify_response.status_code == 200:
                             verify_data = verify_response.json()
                             verified = verify_data.get("valid", False)
+                            logger.info(f"Critical message signature verified: {verified}")
                 except Exception as e:
-                    logger.error(f"Signature verification failed: {str(e)}")
+                    logger.error(f"Critical message signature verification failed: {str(e)}")
                     verified = False
             else:
-                # Decrypt regular message
+                # Decrypt message (secure messages don't need signature verification)
                 try:
                     decrypted_content = decrypt_message(
                         msg.encrypted_content,
@@ -1071,6 +1076,9 @@ async def get_messages(
                         shared_secret,
                         msg.aad
                     )
+                    # For secure messages, verification is not needed (cost optimization)
+                    if msg.message_type == "secured":
+                        verified = None  # Indicates no signature verification required
                 except:
                     decrypted_content = "[Decryption failed]"
             

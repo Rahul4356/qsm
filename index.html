@@ -716,13 +716,18 @@
 
             <!-- Message Input -->
             <div id="messageInputArea" class="bg-white border-t border-gray-200 p-4" style="display:none;">
-                <div class="flex gap-2 mb-3">
-                    <button id="secureBtn" onclick="setMessageType('secured')" class="flex-1 py-2 px-4 rounded-lg font-medium bg-indigo-100 text-indigo-700">
-                        🔒 Secure
-                    </button>
-                    <button id="criticalBtn" onclick="setMessageType('critical')" class="flex-1 py-2 px-4 rounded-lg font-medium bg-gray-100 text-gray-700">
-                        ⚠️ Critical (Signed)
-                    </button>
+                <div class="mb-3">
+                    <div class="flex gap-2 mb-2">
+                        <button id="secureBtn" onclick="setMessageType('secured')" class="flex-1 py-2 px-4 rounded-lg font-medium bg-indigo-100 text-indigo-700">
+                            🔒 Secure
+                        </button>
+                        <button id="criticalBtn" onclick="setMessageType('critical')" class="flex-1 py-2 px-4 rounded-lg font-medium bg-gray-100 text-gray-700">
+                            ⚠️ Critical (Signed)
+                        </button>
+                    </div>
+                    <div id="messageTypeDesc" class="text-xs text-gray-500 text-center">
+                        🔒 Secure: ML-KEM-768 encryption only • ⚠️ Critical: ML-KEM-768 + Falcon-512 signature
+                    </div>
                 </div>
                 <div class="flex gap-3">
                     <textarea id="messageInput" class="flex-1 px-4 py-3 bg-gray-100 rounded-xl resize-none" 
@@ -1888,7 +1893,12 @@
                 // Status badges
                 const statusBadge = msg.queued ? ' (Queued)' : '';
                 const criticalBadge = msg.message_type === 'critical' ? '⚠️ ' : '';
-                const verifiedBadge = msg.verified ? '✓✓' : '✓';
+                
+                // Verification badge - only for critical messages
+                let verifiedBadge = '✓'; // Default for secure messages (encrypted only)
+                if (msg.message_type === 'critical') {
+                    verifiedBadge = msg.verified === true ? '🔒✓✓' : msg.verified === false ? '🔒✗' : '🔒?';
+                }
                 
                 // Create message using the new component
                 const messageNode = window.MessageBubble.renderMessage(container, {
@@ -1996,13 +2006,16 @@
             
             const secureBtn = document.getElementById('secureBtn');
             const criticalBtn = document.getElementById('criticalBtn');
+            const descEl = document.getElementById('messageTypeDesc');
             
             if (type === 'secured') {
                 secureBtn.className = 'flex-1 py-2 px-4 rounded-lg font-medium bg-indigo-100 text-indigo-700';
                 criticalBtn.className = 'flex-1 py-2 px-4 rounded-lg font-medium bg-gray-100 text-gray-700';
+                descEl.innerHTML = '🔒 <strong>Secure Mode:</strong> ML-KEM-768 encryption only (fast, cost-effective)';
             } else {
                 secureBtn.className = 'flex-1 py-2 px-4 rounded-lg font-medium bg-gray-100 text-gray-700';
                 criticalBtn.className = 'flex-1 py-2 px-4 rounded-lg font-medium bg-orange-100 text-orange-700';
+                descEl.innerHTML = '⚠️ <strong>Critical Mode:</strong> ML-KEM-768 encryption + Falcon-512 signature (authenticated, verified)';
             }
         }
         
